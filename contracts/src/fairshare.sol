@@ -2,6 +2,7 @@
 pragma solidity ^0.8.30;
 
 contract Fairshare {
+
     struct Expense {
         string title;
         address[] participants;
@@ -9,11 +10,12 @@ contract Fairshare {
         address payer;
         uint256 timestamp;
         bool settled;
-        uint256[] everyonesShares; // [individual share, individual share, individual share]
+        uint256[] everyonesShares;
         bool equalSplit;
     }
 
     Expense[] public expenses;
+    mapping(address => Expense[]) public expensesByPayer;
 
     event ExpenseCreated(
         uint256 indexed expenseId,
@@ -22,7 +24,7 @@ contract Fairshare {
         address payer
     );
 
-    function createExpense(
+    function createExpenseWithEqualSplit(
         string calldata _title,
         address[] calldata _participants,
         uint256 _amount,
@@ -34,6 +36,34 @@ contract Fairshare {
             shares[i] = individualShare;
         }
 
+        _createExpense(_title, _participants, _amount, _payer, shares, true);
+    }
+
+    function createExpenseWithCustomSplit(
+        string calldata _title,
+        address[] calldata _participants,
+        uint256 _amount,
+        address _payer,
+        uint256[] calldata customShares
+    ) public {
+        require(customShares.length == _participants.length, "Custom shares length mismatch");
+        uint256 total;
+        for (uint256 i = 0; i < customShares.length; i++) {
+            total += customShares[i];
+        }
+        require(total == _amount, "Custom shares must sum to total amount");
+
+        _createExpense(_title, _participants, _amount, _payer, customShares, false);
+    }
+
+    function _createExpense(
+        string calldata _title,
+        address[] calldata _participants,
+        uint256 _amount,
+        address _payer,
+        uint256[] memory _shares,
+        bool _equalSplit
+    ) private {
         expenses.push(
             Expense({
                 title: _title,
@@ -42,13 +72,11 @@ contract Fairshare {
                 payer: _payer,
                 timestamp: block.timestamp,
                 settled: false,
-                everyonesShares: shares,
-                equalSplit: true
+                everyonesShares: _shares,
+                equalSplit: _equalSplit
             })
         );
 
         emit ExpenseCreated(expenses.length - 1, _title, _amount, _payer);
     }
-
-    function payShare() public {}
 }
